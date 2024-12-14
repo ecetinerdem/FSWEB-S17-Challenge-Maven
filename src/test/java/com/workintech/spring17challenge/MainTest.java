@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workintech.spring17challenge.entity.*;
 import com.workintech.spring17challenge.exceptions.ApiErrorResponse;
 import com.workintech.spring17challenge.exceptions.ApiException;
+import com.workintech.spring17challenge.model.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,8 @@ import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -206,7 +209,7 @@ class MainTest {
         // Given
         Integer expectedStatus = 404;
         String expectedMessage = "Not Found";
-        Long expectedTimestamp = System.currentTimeMillis();
+        LocalDateTime expectedTimestamp = LocalDateTime.now();
 
         // When
         ApiErrorResponse errorResponse = new ApiErrorResponse(expectedStatus, expectedMessage, expectedTimestamp);
@@ -223,7 +226,7 @@ class MainTest {
         String expectedMessage = "Test exception message";
         HttpStatus expectedStatus = HttpStatus.NOT_FOUND;
 
-        ApiException exception = new ApiException(expectedMessage, expectedStatus);
+        ApiException exception = new ApiException(expectedStatus, expectedMessage);
 
 
         assertEquals(expectedMessage, exception.getMessage(), "The exception message should match the expected value.");
@@ -235,7 +238,7 @@ class MainTest {
 
     @Test
     void testHttpStatusSetter() {
-        ApiException exception = new ApiException("Initial message", HttpStatus.OK);
+        ApiException exception = new ApiException(HttpStatus.OK, "Initial message");
         exception.setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
 
 
