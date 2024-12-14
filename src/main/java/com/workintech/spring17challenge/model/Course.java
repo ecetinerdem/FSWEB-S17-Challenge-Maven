@@ -8,7 +8,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Course {
+    Integer id;
     String name;
-    int credit;
+    Integer credit;
     Grade grade;
 }
