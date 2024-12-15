@@ -209,7 +209,7 @@ class MainTest {
         // Given
         Integer expectedStatus = 404;
         String expectedMessage = "Not Found";
-        LocalDateTime expectedTimestamp = LocalDateTime.now();
+        Long expectedTimestamp = System.currentTimeMillis();
 
         // When
         ApiErrorResponse errorResponse = new ApiErrorResponse(expectedStatus, expectedMessage, expectedTimestamp);
@@ -226,7 +226,7 @@ class MainTest {
         String expectedMessage = "Test exception message";
         HttpStatus expectedStatus = HttpStatus.NOT_FOUND;
 
-        ApiException exception = new ApiException(expectedStatus, expectedMessage);
+        ApiException exception = new ApiException(expectedMessage, expectedStatus);
 
 
         assertEquals(expectedMessage, exception.getMessage(), "The exception message should match the expected value.");
@@ -238,7 +238,7 @@ class MainTest {
 
     @Test
     void testHttpStatusSetter() {
-        ApiException exception = new ApiException(HttpStatus.OK, "Initial message");
+        ApiException exception = new ApiException("Initial message", HttpStatus.OK);
         exception.setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
 
 

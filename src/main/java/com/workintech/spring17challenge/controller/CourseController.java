@@ -1,94 +1,128 @@
 package com.workintech.spring17challenge.controller;
 
-import com.workintech.spring17challenge.entity.CourseResponse;
-import com.workintech.spring17challenge.exceptions.CourseAlreadyExistsException;
-import com.workintech.spring17challenge.exceptions.CourseNotFoundException;
-import com.workintech.spring17challenge.exceptions.InvalidCreditException;
-import com.workintech.spring17challenge.model.Course;
-import com.workintech.spring17challenge.model.HighCourseGpa;
-import com.workintech.spring17challenge.model.LowCourseGpa;
-import com.workintech.spring17challenge.model.MediumCourseGpa;
+import com.workintech.spring17challenge.entity.Course;
+import com.workintech.spring17challenge.exceptions.ApiException;
+import com.workintech.spring17challenge.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.*;
 
-import java.util.ArrayList;
-import java.util.List;
-
+@RestController
+@RequestMapping("/courses")
 public class CourseController {
-    public List<Course> courses;
-
-
-    @Autowired
-    private LowCourseGpa lowCourseGpa;
-
-    @Autowired
-    private MediumCourseGpa mediumCourseGpa;
+    private List<Course> courses;
+    private CourseGpa highCourseGpa;
+    private CourseGpa mediumCourseGpa;
+    private CourseGpa lowCourseGpa;
 
     @Autowired
-    private HighCourseGpa highCourseGpa;
-
-    public CourseController() {
+    public CourseController(List<Course> courses,
+                            @Qualifier("highCourseGpa") CourseGpa highCourseGpa,
+                            @Qualifier("mediumCourseGpa") CourseGpa mediumCourseGpa,
+                            @Qualifier("lowCourseGpa") CourseGpa lowCourseGpa) {
+        this.highCourseGpa = highCourseGpa;
+        this.mediumCourseGpa = mediumCourseGpa;
+        this.lowCourseGpa = lowCourseGpa;
         this.courses = new ArrayList<>();
-
     }
+
     @GetMapping
-    public List<Course> getAllCourses() {
-        return courses;
+    @ResponseStatus(HttpStatus.OK)
+    public List<Course> getCourses() {
+        if (!courses.isEmpty()) {
+            return courses.stream().toList();
+        } else {
+            return null;
+        }
     }
 
     @GetMapping("/{name}")
-    public Course getCourseByName(@PathVariable String name) {
-        return courses.stream()
-                .filter(course -> course.getName().equals(name))
-                .findFirst()
-                .orElseThrow(() -> new CourseNotFoundException(HttpStatus.NOT_FOUND, "Course not found"));
+    @ResponseStatus(HttpStatus.OK)
+    public Course getCourse(@PathVariable String name) {
+        Optional<Course> courseOpt = courses.stream()
+                .filter(course -> course.getName().equalsIgnoreCase(name))
+                .findFirst();
+        if (courseOpt.isPresent()) {
+            return courseOpt.get();
+        } else {
+            throw new ApiException("Name değeri bulunamdı", HttpStatus.NOT_FOUND);
+        }
     }
 
     @PostMapping
-    public ResponseEntity<CourseResponse> createCourse(@RequestBody Course course) {
-        if (courses.stream().anyMatch(c -> c.getName().equals(course.getName()))) {
-            throw new CourseAlreadyExistsException(HttpStatus.BAD_REQUEST, "Course already exists");
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Object> postCourse(@RequestBody Course course) {
+
+        if (course.getName() == null || course.getGrade() == null) {
+            throw new ApiException("Course objesi null değer içeremez.", HttpStatus.BAD_REQUEST);
         }
-        if (course.getCredit() < 0 || course.getCredit() > 4) {
-            throw new InvalidCreditException(HttpStatus.NOT_FOUND, "Invalid credit value");
-        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("course", course);
+        response.put("totalGpa", credit(course));
         courses.add(course);
-        int totalGpa = calculateTotalGpa(course);
-        return ResponseEntity.status(HttpStatus.CREATED).body(new CourseResponse(course, totalGpa));
+        return response;
+    }
+
+    private int credit(Course course) {
+        int credit = course.getCredit();
+        int totalGpa = 0;
+
+        if (credit <= 2) {
+            totalGpa = course.getGrade().getCoefficient() * credit * lowCourseGpa.getGpa();
+        } else if (credit == 3) {
+            totalGpa = course.getGrade().getCoefficient() * credit * mediumCourseGpa.getGpa();
+        } else if (credit == 4) {
+            totalGpa = course.getGrade().getCoefficient() * credit * highCourseGpa.getGpa();
+        } else {
+            throw new ApiException("Geçersiz credit değeri", HttpStatus.BAD_REQUEST);
+        }
+
+        return totalGpa;
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<CourseResponse> updateCourse(@PathVariable int id, @RequestBody Course course) {
-        Course existingCourse = courses.get(id);
-        if (existingCourse == null) {
-            throw new CourseNotFoundException(HttpStatus.NOT_FOUND, "Course not found");
+    @ResponseStatus(HttpStatus.OK)
+    public Map<String, Object> updateCourse(@PathVariable int id, @RequestBody Course updateCourse) {
+        Optional<Course> oldCourseOpt = courses.stream().filter(course -> course.getId() == id).findFirst();
+
+        if (oldCourseOpt.isPresent()) {
+            Course oldCourse = oldCourseOpt.get();
+            oldCourse.setName(updateCourse.getName());
+            oldCourse.setGrade(updateCourse.getGrade());
+            oldCourse.setCredit(updateCourse.getCredit());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("course", updateCourse);
+            response.put("totalGpa", credit(updateCourse));
+            return response;
+        } else {
+            throw new ApiException("Course bulunamadi", HttpStatus.NOT_FOUND);
         }
-        existingCourse.setName(course.getName());
-        existingCourse.setCredit(course.getCredit());
-        existingCourse.setGrade(course.getGrade());
-        int totalGpa = calculateTotalGpa(existingCourse);
-        return ResponseEntity.ok(new CourseResponse(existingCourse, totalGpa));
     }
+
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCourse(@PathVariable int id) {
-        if (id < 0 || id >= courses.size()) {
-            throw new CourseNotFoundException(HttpStatus.NOT_FOUND, "Course not found");
+    @ResponseStatus(HttpStatus.OK)
+    public Course deleteCourse(@PathVariable int id) {
+        if (id <= 0) {
+            throw new ApiException("ID value cannot be negative", HttpStatus.BAD_REQUEST);
         }
-        courses.remove(id);
-        return ResponseEntity.ok().build();
+
+        Optional<Course> courseOpt = courses.stream()
+                .filter(course -> course.getId() == id)
+                .findFirst();
+
+        if (courseOpt.isPresent()) {
+            Course removedCourse = courseOpt.get();
+            courses.remove(removedCourse);
+            return removedCourse;
+        } else {
+            throw new ApiException("Course not found", HttpStatus.NOT_FOUND);
+        }
     }
 
-    private int calculateTotalGpa(Course course) {
-        if (course.getCredit() <= 2) {
-            return course.getGrade().getCoefficient() * course.getCredit() * lowCourseGpa.getGpa();
-        } else if (course.getCredit() == 3) {
-            return course.getGrade().getCoefficient() * course.getCredit() * mediumCourseGpa.getGpa();
-        } else {
-            return course.getGrade().getCoefficient() * course.getCredit() * highCourseGpa.getGpa();
-        }
-    }
 }
